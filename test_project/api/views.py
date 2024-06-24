@@ -1,4 +1,3 @@
-from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,19 +5,22 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from ads.models import Advertisement, User, AuthToken
 from .serializers import AdvertisementSerializer, UserSerializer
+from .permissions import BearerTokenPermission
 
 
 class RegisterView(APIView):
+    """Вью Регистрации"""
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            token = str(AccessToken.for_user(serializer.instance))  # Convert to string
+            token = str(AccessToken.for_user(serializer.instance))
             return Response({'token': token})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginView(APIView):
+    """Вью Авторизации"""
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
@@ -33,31 +35,17 @@ class LoginView(APIView):
 
 
 class AdvertisementAPIView(APIView):
-    def validate_token(self, token):
-        try:
-            auth_token = AuthToken.objects.get(key=token)
-            if auth_token.expires_at and auth_token.expires_at < timezone.now():
-                return False
-            return True
-        except AuthToken.DoesNotExist:
-            return False
+    """Вью Объявления"""
+    permission_classes = [BearerTokenPermission]
 
     def get(self, request, ad_id):
-        if 'Authorization' not in request.headers:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
-        auth_header = request.headers['Authorization']
-        if not auth_header.startswith('Bearer '):
-            return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
-
-        token = auth_header.split('Bearer ')[1]
-        if not self.validate_token(token):
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         try:
             advertisement = Advertisement.objects.get(id=ad_id)
         except Advertisement.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        serializer = AdvertisementSerializer(advertisement)
+        serializer = AdvertisementSerializer(
+            advertisement,
+            context={'request': request}
+        )
         return Response(serializer.data)

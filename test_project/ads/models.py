@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
-
 from django.db import models
 import uuid
+
 
 class Advertisement(models.Model):
     """Модель объявления"""
@@ -20,8 +20,13 @@ class User(models.Model):
 
 
 class AuthToken(models.Model):
+    """Модель Токена"""
     key = models.CharField(max_length=40, primary_key=True)
-    user = models.ForeignKey(User, related_name='auth_tokens', on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        User,
+        related_name='auth_tokens',
+        on_delete=models.CASCADE
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(null=True, blank=True)
 
