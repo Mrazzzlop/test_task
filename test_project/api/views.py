@@ -1,13 +1,11 @@
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework_simplejwt.tokens import AccessToken
 
-from ads.models import Advertisement, User
+from ads.models import Advertisement, User, AuthToken
 from .serializers import AdvertisementSerializer, UserSerializer
-
-from rest_framework.authentication import TokenAuthentication
 
 
 class RegisterView(APIView):
@@ -26,8 +24,8 @@ class LoginView(APIView):
         password = request.data.get('password')
         user = User.objects.filter(email=email).first()
         if user and user.password == password:
-            token = str(AccessToken.for_user(user))  # Convert to string
-            return Response({'token': token})
+            token, _ = AuthToken.objects.get_or_create(user=user)
+            return Response({'token': token.key})
         return Response({
             'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED
@@ -35,6 +33,15 @@ class LoginView(APIView):
 
 
 class AdvertisementAPIView(APIView):
+    def validate_token(self, token):
+        try:
+            auth_token = AuthToken.objects.get(key=token)
+            if auth_token.expires_at and auth_token.expires_at < timezone.now():
+                return False
+            return True
+        except AuthToken.DoesNotExist:
+            return False
+
     def get(self, request, ad_id):
         if 'Authorization' not in request.headers:
             return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
